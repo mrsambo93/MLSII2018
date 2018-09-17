@@ -97,8 +97,9 @@ class Scraper:
                     (By.CSS_SELECTOR, 'a[class="FPmhX notranslate TlrDj"]'))).get_attribute('title')
                 description = WebDriverWait(driver, 10).until(EC.visibility_of_element_located(
                     (By.XPATH,
-                    '//*[@id="react-root"]/section/main/div/div/article/div[2]/div[1]/ul/li[1]/div/div/div/span')))\
+                        '//*[@id="react-root"]/section/main/div/div/article/div[2]/div[1]/ul/li[1]/div/div/div/span')))\
                     .text
+                hashtags = list({tag for tag in description.split() if tag.startswith('#')})
                 likes_selector = self.get_likes(driver)
                 likes = 0
                 if likes_selector:
@@ -114,6 +115,7 @@ class Scraper:
                     post["video_url"] = video_url
                 post["user_name"] = user_name
                 post["description"] = description
+                post["hashtags"] = hashtags
                 post["likes"] = likes
                 post["date"] = date
                 post["comments"] = list()
