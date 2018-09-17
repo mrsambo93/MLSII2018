@@ -15,6 +15,8 @@ class Scraper:
     def __init__(self):
         if not os.path.isdir(self.OUTPUT_DIR):
             os.mkdir(self.OUTPUT_DIR)
+
+    def establish_connection(self):
         opts = ChromeOptions()
         opts.add_experimental_option('detach', True)
         prefs = {'profile.managed_default_content_settings.images': 2, 'disk-cache-size': 4096}
@@ -27,21 +29,19 @@ class Scraper:
         driver.get('https://www.instagram.com')
 
         self.login(driver)
-        posts_link = self.get_posts_by_tag(driver, "#picoftheday", 100)
-        print('%s' % posts_link)
 
-        posts = self.scrape_posts(driver, posts_link)
+        return driver
 
-        self.save_to_file(posts, "#picoftheday")
-
+    def end_connection(self, driver):
         driver.quit()
 
     def login(self, driver):
         element = WebDriverWait(driver, 10).until(EC.visibility_of_element_located(
-            (By.XPATH, '//*[@id="react-root"]/section/main/article/div[2]/div[2]/p/a')))
-        element.click()
+            (By.CSS_SELECTOR, 'p[class="izU2O"]')))
+        link = element.find_element_by_css_selector('a')
+        link.click()
 
-        time.sleep(1)
+        time.sleep(3)
 
         with open("credentials.json", "r") as json_file:
             credentials = json.load(json_file)
@@ -54,6 +54,14 @@ class Scraper:
             (By.CSS_SELECTOR, 'button[class="_5f5mN       jIbKX KUBKM      yZn4P   "]')))
         if button.is_enabled():
             button.click()
+
+    def scrape_hashtag(self, driver, hashtag):
+        posts_link = self.get_posts_by_tag(driver, hashtag, 100)
+        print('%s' % posts_link)
+
+        posts = self.scrape_posts(driver, posts_link)
+
+        self.save_to_file(posts, hashtag)
 
     def get_posts_by_tag(self, driver, tag, number):
         WebDriverWait(driver, 10).until(EC.visibility_of_element_located(
@@ -121,17 +129,25 @@ class Scraper:
                 post["comments"] = list()
                 comments = self.get_comments(driver)
                 if comments:
-                    for comment in comments:
+                    comments_hashtags = set()
+                    for i, comment in enumerate(comments):
+                        if i == 0:
+                            continue
                         commenter = comment.find_element_by_css_selector('a[class="FPmhX notranslate TlrDj"]')\
                             .get_attribute('title')
                         comm_descr = comment.find_element_by_css_selector('span').text
+                        for tag in comm_descr.split():
+                            if tag.startswith('#'):
+                                comments_hashtags.add(tag)
                         post["comments"].append({
                             "commenter": commenter,
                             "comment": comm_descr
                         })
+                    if comments_hashtags:
+                        post["comments_hashtags"] = list(comments_hashtags)
                 scraped.append(post)
             except TimeoutException:
-                pass
+                continue
         return scraped
 
     def get_comments(self, driver):
@@ -164,4 +180,7 @@ class Scraper:
 
 
 if __name__ == '__main__':
-    Scraper()
+    scraper = Scraper()
+    driv = scraper.establish_connection()
+    scraper.scrape_hashtag(driv, "#picoftheday")
+    scraper.end_connection(driv)
