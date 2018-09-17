@@ -55,8 +55,8 @@ class Scraper:
         if button.is_enabled():
             button.click()
 
-    def scrape_hashtag(self, driver, hashtag):
-        posts_link = self.get_posts_by_tag(driver, hashtag, 100)
+    def scrape_hashtag(self, driver, hashtag, number):
+        posts_link = self.get_posts_by_tag(driver, hashtag, number)
         print('%s' % posts_link)
 
         posts = self.scrape_posts(driver, posts_link)
@@ -182,5 +182,5 @@ class Scraper:
 if __name__ == '__main__':
     scraper = Scraper()
     driv = scraper.establish_connection()
-    scraper.scrape_hashtag(driv, "#picoftheday")
+    scraper.scrape_hashtag(driv, "#picoftheday", 100)
     scraper.end_connection(driv)
