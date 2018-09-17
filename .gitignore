@@ -2,3 +2,4 @@ venv
 credentials.json
 .idea
 posts
+chromedriver/chromedriver
