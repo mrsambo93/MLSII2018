@@ -11,10 +11,18 @@ import os
 
 class Scraper:
     OUTPUT_DIR = "posts"
+    OUTPUT_TAG_DIR = "posts/hashtags"
+    OUTPUT_USER_DIR = "posts/users"
+    TAG = "tag"
+    USER = "user"
 
     def __init__(self):
         if not os.path.isdir(self.OUTPUT_DIR):
             os.mkdir(self.OUTPUT_DIR)
+        if not os.path.isdir(self.OUTPUT_TAG_DIR):
+            os.mkdir(self.OUTPUT_TAG_DIR)
+        if not os.path.isdir(self.OUTPUT_USER_DIR):
+            os.mkdir(self.OUTPUT_USER_DIR)
 
     def establish_connection(self):
         opts = ChromeOptions()
@@ -57,11 +65,13 @@ class Scraper:
 
     def scrape_hashtag(self, driver, hashtag, number):
         posts_link = self.get_posts_by_tag(driver, hashtag, number)
-        print('%s' % posts_link)
-
         posts = self.scrape_posts(driver, posts_link)
+        self.save_to_file(posts, hashtag, self.TAG)
 
-        self.save_to_file(posts, hashtag)
+    def scrape_user(self, driver, username, number):
+        posts_link = self.get_user_posts(driver, username, number)
+        posts = self.scrape_posts(driver, posts_link)
+        self.save_to_file(posts, username, self.USER)
 
     def get_posts_by_tag(self, driver, tag, number):
         WebDriverWait(driver, 10).until(EC.visibility_of_element_located(
@@ -80,6 +90,22 @@ class Scraper:
         while len(posts) <= number - len(popular_posts):
             new_posts = WebDriverWait(driver, 10).until(EC.visibility_of_all_elements_located(
                 (By.XPATH, '//*[@id="react-root"]/section/main/article/div[2]/div/div/div/a')))
+            for el in new_posts:
+                posts.add(el.get_attribute('href'))
+            driver.execute_script('window.scrollTo(0, document.body.scrollHeight);')
+
+        posts_list = list()
+        for elem in posts:
+            posts_list.append(elem)
+        return posts_list
+
+    def get_user_posts(self, driver, username, number):
+        driver.get('https:/www.instagram.com/' + username)
+
+        posts = set()
+        while len(posts) <= number:
+            new_posts = WebDriverWait(driver, 10).until(EC.visibility_of_all_elements_located(
+                (By.XPATH, '//*[@id="react-root"]/section/main/div/div[2]/article/div[1]/div/div/div/a')))
             for el in new_posts:
                 posts.add(el.get_attribute('href'))
             driver.execute_script('window.scrollTo(0, document.body.scrollHeight);')
@@ -174,8 +200,15 @@ class Scraper:
         except NoSuchElementException:
             return None
 
-    def save_to_file(self, posts, tag):
-        with open(self.OUTPUT_DIR + '/' + tag + ".json", "w") as output_file:
+    def save_to_file(self, posts, name, type):
+        directory = ''
+        if type == self.TAG:
+            directory = self.OUTPUT_TAG_DIR
+        if type == self.USER:
+            directory = self.OUTPUT_USER_DIR
+        if not directory:
+            return 
+        with open(directory + '/' + name + ".json", "w") as output_file:
             json.dump(posts, output_file, indent=4)
 
 
@@ -183,4 +216,5 @@ if __name__ == '__main__':
     scraper = Scraper()
     driv = scraper.establish_connection()
     scraper.scrape_hashtag(driv, "#picoftheday", 100)
+    scraper.scrape_user(driv, "j23app", 100)
     scraper.end_connection(driv)
