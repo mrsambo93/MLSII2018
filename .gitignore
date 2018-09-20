@@ -3,3 +3,4 @@ credentials.json
 .idea
 posts
 chromedriver/chromedriver
+__pycache__
