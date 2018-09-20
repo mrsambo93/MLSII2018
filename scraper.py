@@ -7,6 +7,7 @@ from selenium.common.exceptions import NoSuchElementException, TimeoutException
 import json
 import time
 import os
+from tqdm import tqdm
 
 
 class Scraper:
@@ -15,6 +16,8 @@ class Scraper:
     OUTPUT_USER_DIR = "posts/users"
     TAG = "tag"
     USER = "user"
+    COMMENTS_LIMIT = 10
+    POSTS_LIMIT = 100
 
     def __init__(self):
         if not os.path.isdir(self.OUTPUT_DIR):
@@ -30,11 +33,12 @@ class Scraper:
         prefs = {'profile.managed_default_content_settings.images': 2, 'disk-cache-size': 4096}
         opts.add_experimental_option('prefs', prefs)
         opts.add_argument('--disable-popup-blocking')
-        opts.add_argument('start-maximized')
+        # opts.add_argument("start-maximized")
+        opts.add_argument('--no-proxy-server')
+        opts.add_argument('headless')
         opts.add_argument('disable-infobars')
 
         driver = webdriver.Chrome('./chromedriver/chromedriver', chrome_options=opts)
-        driver.get('https://www.instagram.com')
 
         self.login(driver)
 
@@ -44,12 +48,7 @@ class Scraper:
         driver.quit()
 
     def login(self, driver):
-        element = WebDriverWait(driver, 10).until(EC.visibility_of_element_located(
-            (By.CSS_SELECTOR, 'p[class="izU2O"]')))
-        link = element.find_element_by_css_selector('a')
-        link.click()
-
-        time.sleep(3)
+        driver.get("https://www.instagram.com/accounts/login/?source=auth_switcher")
 
         with open("credentials.json", "r") as json_file:
             credentials = json.load(json_file)
@@ -62,34 +61,27 @@ class Scraper:
             (By.CSS_SELECTOR, 'button[class="_5f5mN       jIbKX KUBKM      yZn4P   "]')))
         if button.is_enabled():
             button.click()
+            print("Logged in")
 
-    def scrape_hashtag(self, driver, hashtag, number):
-        posts_link = self.get_posts_by_tag(driver, hashtag, number)
+    def scrape_hashtag(self, driver, hashtag):
+        posts_link = self.get_posts_by_tag(driver, hashtag, self.POSTS_LIMIT)
         posts = self.scrape_posts(driver, posts_link)
         self.save_to_file(posts, hashtag, self.TAG)
 
-    def scrape_user(self, driver, username, number):
-        posts_link = self.get_user_posts(driver, username, number)
+    def scrape_user(self, driver, username):
+        posts_link = self.get_user_posts(driver, username, self.POSTS_LIMIT)
         posts = self.scrape_posts(driver, posts_link)
         self.save_to_file(posts, username, self.USER)
 
     def get_posts_by_tag(self, driver, tag, number):
-        WebDriverWait(driver, 10).until(EC.visibility_of_element_located(
-            (By.CSS_SELECTOR, 'button[class="chBAG"]'))).click()
-        WebDriverWait(driver, 10).until(EC.visibility_of_element_located(
-            (By.CSS_SELECTOR, 'input[placeholder="Cerca"]'))).send_keys(tag)
-        send = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'span[class="Ap253"]')))
-        send.click()
+        self.close_pop_up(driver)
+        driver.get("https:/www.instagram.com/explore/" + tag)
 
-        popular_posts = WebDriverWait(driver, 10).until(EC.visibility_of_all_elements_located(
-            (By.XPATH, '//*[@id="react-root"]/section/main/article/div[1]/div/div/div/div/a')))
-
+        print("Collecting posts for " + tag)
         posts = set()
-        for el in popular_posts:
-            posts.add(el.get_attribute("href"))
-        while len(posts) <= number - len(popular_posts):
+        while len(posts) <= number:
             new_posts = WebDriverWait(driver, 10).until(EC.visibility_of_all_elements_located(
-                (By.XPATH, '//*[@id="react-root"]/section/main/article/div[2]/div/div/div/a')))
+                (By.XPATH, '//*[@id="react-root"]/section/main/div/article/div[1]/div/div/div/a')))
             for el in new_posts:
                 posts.add(el.get_attribute('href'))
             driver.execute_script('window.scrollTo(0, document.body.scrollHeight);')
@@ -100,8 +92,10 @@ class Scraper:
         return posts_list
 
     def get_user_posts(self, driver, username, number):
+        self.close_pop_up(driver)
         driver.get('https:/www.instagram.com/' + username)
 
+        print("Collectiong posts for " + username)
         posts = set()
         while len(posts) <= number:
             new_posts = WebDriverWait(driver, 10).until(EC.visibility_of_all_elements_located(
@@ -118,7 +112,8 @@ class Scraper:
     def scrape_posts(self, driver, posts_link):
         scraped = list()
         page_counter = 0
-        for post_link in posts_link:
+        print("Scraping")
+        for post_link in tqdm(posts_link):
             try:
                 if page_counter == 10:
                     page_counter = 0
@@ -155,6 +150,7 @@ class Scraper:
                 post["comments"] = list()
                 comments = self.get_comments(driver)
                 if comments:
+                    self.expand_comments(driver, self.COMMENTS_LIMIT)
                     comments_hashtags = set()
                     for i, comment in enumerate(comments):
                         if i == 0:
@@ -200,6 +196,23 @@ class Scraper:
         except NoSuchElementException:
             return None
 
+    def expand_comments(self, driver, limit):
+        try:
+            i = 0
+            while i < limit:
+                WebDriverWait(driver, 1).until(EC.visibility_of_element_located(
+                    (By.CSS_SELECTOR, 'li[class="lnrre"]'))).click()
+                i += 1
+        except TimeoutException:
+            return
+
+    def close_pop_up(self, driver):
+        try:
+            WebDriverWait(driver, 5).until(EC.visibility_of_element_located(
+                (By.CSS_SELECTOR, 'button[class="chBAG"]'))).click()
+        except TimeoutException:
+            return
+
     def save_to_file(self, posts, name, type):
         directory = ''
         if type == self.TAG:
@@ -207,7 +220,7 @@ class Scraper:
         if type == self.USER:
             directory = self.OUTPUT_USER_DIR
         if not directory:
-            return 
+            return
         with open(directory + '/' + name + ".json", "w") as output_file:
             json.dump(posts, output_file, indent=4)
 
@@ -215,6 +228,6 @@ class Scraper:
 if __name__ == '__main__':
     scraper = Scraper()
     driv = scraper.establish_connection()
-    scraper.scrape_hashtag(driv, "#picoftheday", 100)
-    scraper.scrape_user(driv, "j23app", 100)
+    scraper.scrape_hashtag(driv, "#picoftheday")
+    scraper.scrape_user(driv, "j23app")
     scraper.end_connection(driv)
