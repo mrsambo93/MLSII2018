@@ -8,16 +8,18 @@ import json
 import time
 import os
 from tqdm import tqdm
+from mongoconnector import MongoConnector
 
 
-class Scraper:
+class InstagramScraper:
     OUTPUT_DIR = "posts"
     OUTPUT_TAG_DIR = "posts/hashtags"
     OUTPUT_USER_DIR = "posts/users"
     TAG = "tag"
     USER = "user"
     COMMENTS_LIMIT = 10
-    POSTS_LIMIT = 100
+    POSTS_LIMIT = 10
+    credentials = dict()
 
     def __init__(self):
         if not os.path.isdir(self.OUTPUT_DIR):
@@ -26,6 +28,9 @@ class Scraper:
             os.mkdir(self.OUTPUT_TAG_DIR)
         if not os.path.isdir(self.OUTPUT_USER_DIR):
             os.mkdir(self.OUTPUT_USER_DIR)
+
+        with open("credentials.json", "r") as json_file:
+            self.credentials = json.load(json_file)
 
     def establish_connection(self):
         opts = ChromeOptions()
@@ -50,13 +55,10 @@ class Scraper:
     def login(self, driver):
         driver.get("https://www.instagram.com/accounts/login/?source=auth_switcher")
 
-        with open("credentials.json", "r") as json_file:
-            credentials = json.load(json_file)
-
         WebDriverWait(driver, 10).until(EC.visibility_of_element_located(
-            (By.CSS_SELECTOR, 'input[name="username"]'))).send_keys(credentials["user"])
+            (By.CSS_SELECTOR, 'input[name="username"]'))).send_keys(self.credentials["user"])
         WebDriverWait(driver, 10).until(EC.visibility_of_element_located(
-            (By.CSS_SELECTOR, 'input[name="password"]'))).send_keys(credentials["password"])
+            (By.CSS_SELECTOR, 'input[name="password"]'))).send_keys(self.credentials["password"])
         button = WebDriverWait(driver, 10).until(EC.visibility_of_element_located(
             (By.CSS_SELECTOR, 'button[class="_5f5mN       jIbKX KUBKM      yZn4P   "]')))
         if button.is_enabled():
@@ -67,11 +69,13 @@ class Scraper:
         posts_link = self.get_posts_by_tag(driver, hashtag, self.POSTS_LIMIT)
         posts = self.scrape_posts(driver, posts_link)
         self.save_to_file(posts, hashtag, self.TAG)
+        MongoConnector.save_to_db(posts)
 
     def scrape_user(self, driver, username):
         posts_link = self.get_user_posts(driver, username, self.POSTS_LIMIT)
         posts = self.scrape_posts(driver, posts_link)
         self.save_to_file(posts, username, self.USER)
+        MongoConnector.save_to_db(posts)
 
     def get_posts_by_tag(self, driver, tag, number):
         self.close_pop_up(driver)
@@ -147,6 +151,7 @@ class Scraper:
                 post["hashtags"] = hashtags
                 post["likes"] = likes
                 post["date"] = date
+                post["source"] = "www.instagram.com"
                 post["comments"] = list()
                 comments = self.get_comments(driver)
                 if comments:
@@ -200,8 +205,9 @@ class Scraper:
         try:
             i = 0
             while i < limit:
-                WebDriverWait(driver, 1).until(EC.visibility_of_element_located(
-                    (By.CSS_SELECTOR, 'li[class="lnrre"]'))).click()
+                more = WebDriverWait(driver, 1).until(EC.element_to_be_clickable(
+                    (By.CSS_SELECTOR, 'li[class="lnrre"]')))
+                more.click()
                 i += 1
         except TimeoutException:
             return
@@ -226,7 +232,7 @@ class Scraper:
 
 
 if __name__ == '__main__':
-    scraper = Scraper()
+    scraper = InstagramScraper()
     driv = scraper.establish_connection()
     scraper.scrape_hashtag(driv, "#picoftheday")
     scraper.scrape_user(driv, "j23app")

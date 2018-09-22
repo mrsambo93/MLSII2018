@@ -1,5 +1,5 @@
 import sys, argparse, os
-from scraper import Scraper
+from instagramscraper import InstagramScraper
 
 
 def check_input(inp):
@@ -26,7 +26,7 @@ def main():
         if not (args.t or args.u):
             print("At least an hashtag or a user must be defined")
             sys.exit(1)
-        scraper = Scraper()
+        scraper = InstagramScraper()
         driver = scraper.establish_connection()
         if args.t:
             inp = check_input(args.t)
