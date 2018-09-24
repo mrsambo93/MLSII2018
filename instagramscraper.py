@@ -132,7 +132,7 @@ class InstagramScraper:
                     (By.XPATH,
                         '//*[@id="react-root"]/section/main/div/div/article/div[2]/div[1]/ul/li[1]/div/div/div/span')))\
                     .text
-                hashtags = list({tag for tag in description.split() if tag.startswith('#')})
+                hashtags = list({tag.replace('#', '') for tag in description.split() if tag.startswith('#')})
                 likes_selector = self.get_likes(driver)
                 likes = 0
                 if likes_selector:
@@ -150,7 +150,7 @@ class InstagramScraper:
                 post["description"] = description
                 post["hashtags"] = hashtags
                 post["likes"] = likes
-                post["date"] = date
+                post["date"] = date.replace('T', ' ').replace('.000Z', '')
                 post["source"] = "www.instagram.com"
                 post["comments"] = list()
                 comments = self.get_comments(driver)
@@ -165,7 +165,7 @@ class InstagramScraper:
                         comm_descr = comment.find_element_by_css_selector('span').text
                         for tag in comm_descr.split():
                             if tag.startswith('#'):
-                                comments_hashtags.add(tag)
+                                comments_hashtags.add(tag.replace('#', ''))
                         post["comments"].append({
                             "commenter": commenter,
                             "comment": comm_descr
@@ -234,6 +234,5 @@ class InstagramScraper:
 if __name__ == '__main__':
     scraper = InstagramScraper()
     driv = scraper.establish_connection()
-    scraper.scrape_hashtag(driv, "#picoftheday")
-    scraper.scrape_user(driv, "j23app")
+    scraper.scrape_hashtag(driv, "#sport")
     scraper.end_connection(driv)
