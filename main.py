@@ -1,5 +1,7 @@
 import sys, argparse, os
 from instagramscraper import InstagramScraper
+from flickrscraper import FlickrScraper
+from mongoconnector import MongoConnector
 
 
 def check_input(inp):
@@ -26,31 +28,36 @@ def main():
         if not (args.t or args.u):
             print("At least an hashtag or a user must be defined")
             sys.exit(1)
-        scraper = InstagramScraper()
-        driver = scraper.establish_connection()
+        instagram_scraper = InstagramScraper()
+        flickr_scraper = FlickrScraper()
+        driver = instagram_scraper.establish_connection()
+        flickrapi = flickr_scraper.establish_connection()
         if args.t:
             inp = check_input(args.t)
             if inp == 0:
                 with open(args.t) as tag_file:
                     for line in tag_file:
-                        scraper.scrape_hashtag(driver, line)
+                        instagram_scraper.scrape_hashtag(driver, line)
+                        flickr_scraper.scrape_hashtag(flickrapi, line)
             elif inp == 1:
                 for tag in args.t:
-                    scraper.scrape_hashtag(driver, tag)
+                    instagram_scraper.scrape_hashtag(driver, tag)
+                    flickr_scraper.scrape_hashtag(flickrapi, tag)
             elif inp == 2:
-                scraper.scrape_hashtag(driver, args.t)
+                instagram_scraper.scrape_hashtag(driver, args.t)
+                flickr_scraper.scrape_hashtag(flickrapi, args.t)
         if args.u:
             inp = check_input(args.u)
             if inp == 0:
                 with open(args.u) as user_file:
                     for line in user_file:
-                        scraper.scrape_user(driver, line)
+                        instagram_scraper.scrape_user(driver, line)
             elif inp == 1:
                 for user in args.u:
-                    scraper.scrape_user(driver, user)
+                    instagram_scraper.scrape_user(driver, user)
             elif inp == 2:
-                scraper.scrape_user(driver, args.u)
-        scraper.end_connection(driver)
+                instagram_scraper.scrape_user(driver, args.u)
+        instagram_scraper.end_connection(driver)
     else:
         print("Invalid function, type -h for more info")
         sys.exit(1)

@@ -17,8 +17,8 @@ class InstagramScraper:
     OUTPUT_USER_DIR = "posts/users"
     TAG = "tag"
     USER = "user"
+    POSTS_LIMIT = 1000
     COMMENTS_LIMIT = 10
-    POSTS_LIMIT = 10
     credentials = dict()
 
     def __init__(self):
@@ -35,10 +35,10 @@ class InstagramScraper:
     def establish_connection(self):
         opts = ChromeOptions()
         opts.add_experimental_option('detach', True)
-        prefs = {'profile.managed_default_content_settings.images': 2, 'disk-cache-size': 4096}
+        prefs = {'disk-cache-size': 4096, 'profile.managed_default_content_settings.images': 2}
         opts.add_experimental_option('prefs', prefs)
         opts.add_argument('--disable-popup-blocking')
-        # opts.add_argument("start-maximized")
+        opts.add_argument("start-maximized")
         opts.add_argument('--no-proxy-server')
         opts.add_argument('headless')
         opts.add_argument('disable-infobars')
@@ -69,26 +69,33 @@ class InstagramScraper:
         posts_link = self.get_posts_by_tag(driver, hashtag, self.POSTS_LIMIT)
         posts = self.scrape_posts(driver, posts_link)
         self.save_to_file(posts, hashtag, self.TAG)
-        MongoConnector.save_to_db(posts)
+        MongoConnector.save_to_db(posts, hashtag.replace('#', ''))
 
     def scrape_user(self, driver, username):
         posts_link = self.get_user_posts(driver, username, self.POSTS_LIMIT)
         posts = self.scrape_posts(driver, posts_link)
         self.save_to_file(posts, username, self.USER)
-        MongoConnector.save_to_db(posts)
+        MongoConnector.save_to_db(posts, 'users')
 
     def get_posts_by_tag(self, driver, tag, number):
         self.close_pop_up(driver)
-        driver.get("https:/www.instagram.com/explore/" + tag)
+        driver.get("https:/www.instagram.com/explore/tags/" + tag.replace('#', ''))
 
         print("Collecting posts for " + tag)
         posts = set()
-        while len(posts) <= number:
+        pbar = tqdm(total=number)
+        previous_len = 0
+        while len(posts) < number:
             new_posts = WebDriverWait(driver, 10).until(EC.visibility_of_all_elements_located(
-                (By.XPATH, '//*[@id="react-root"]/section/main/div/article/div[1]/div/div/div/a')))
+                (By.XPATH, '//*[@id="react-root"]/section/main/article/div[2]/div/div/div/a')))
             for el in new_posts:
-                posts.add(el.get_attribute('href'))
+                if len(posts) < number:
+                    posts.add(el.get_attribute('href'))
+                if previous_len < len(posts):
+                    pbar.update(1)
+                    previous_len = len(posts)
             driver.execute_script('window.scrollTo(0, document.body.scrollHeight);')
+        pbar.update(number - pbar.n)
 
         posts_list = list()
         for elem in posts:
@@ -116,7 +123,8 @@ class InstagramScraper:
     def scrape_posts(self, driver, posts_link):
         scraped = list()
         page_counter = 0
-        print("Scraping")
+        time.sleep(1)
+        print("\nScraping on instagram")
         for post_link in tqdm(posts_link):
             try:
                 if page_counter == 10:

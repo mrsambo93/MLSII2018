@@ -1,4 +1,5 @@
 import pymongo, json
+from tqdm import tqdm
 
 
 class MongoConnector:
@@ -25,12 +26,12 @@ class MongoConnector:
         return MongoConnector.__instance
 
     @staticmethod
-    def save_to_db(posts):
+    def save_to_db(posts, tag):
+        print('\nSaving on db')
         connector = MongoConnector.get_instance()
-        MongoConnector.clean_db()
         connector.db.posts.create_index([('url', pymongo.ASCENDING)], unique=True)
-        pos = connector.db.posts
-        for post in posts:
+        pos = connector.db[tag]
+        for post in tqdm(posts):
             res = pos.replace_one({'url': post["url"]}, post)
             if res.modified_count == 0:
                 pos.insert_one(post)
@@ -38,4 +39,6 @@ class MongoConnector:
     @staticmethod
     def clean_db():
         connector = MongoConnector.get_instance()
-        connector.db.posts.remove({})
+        collection_names = connector.db.list_collection_names()
+        for collection in collection_names:
+            connector.db[collection].remove({})
