@@ -12,8 +12,8 @@ Per far funzionare lo scraper:
       {
         "user" : "xxx",
         "password" : "xxx",
-        "flickr_key": "43913328ddd9b2625e23bc41f8ebe526",
-        "flickr_secret": "9777059efea7172c""
+        "flickr_key": "xxx",
+        "flickr_secret": "xxx"
       }
       ```
   5) lanciare un'istanza di mongodb sulla porta di default:
