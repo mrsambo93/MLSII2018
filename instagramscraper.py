@@ -12,9 +12,6 @@ from mongoconnector import MongoConnector
 
 
 class InstagramScraper:
-    OUTPUT_DIR = "posts"
-    OUTPUT_TAG_DIR = "posts/hashtags"
-    OUTPUT_USER_DIR = "posts/users"
     TAG = "tag"
     USER = "user"
     POSTS_LIMIT = 1000
@@ -22,12 +19,6 @@ class InstagramScraper:
     credentials = dict()
 
     def __init__(self):
-        if not os.path.isdir(self.OUTPUT_DIR):
-            os.mkdir(self.OUTPUT_DIR)
-        if not os.path.isdir(self.OUTPUT_TAG_DIR):
-            os.mkdir(self.OUTPUT_TAG_DIR)
-        if not os.path.isdir(self.OUTPUT_USER_DIR):
-            os.mkdir(self.OUTPUT_USER_DIR)
 
         with open("credentials.json", "r") as json_file:
             self.credentials = json.load(json_file)
@@ -68,13 +59,11 @@ class InstagramScraper:
     def scrape_hashtag(self, driver, hashtag):
         posts_link = self.get_posts_by_tag(driver, hashtag, self.POSTS_LIMIT)
         posts = self.scrape_posts(driver, posts_link)
-        self.save_to_file(posts, hashtag, self.TAG)
         MongoConnector.save_to_db(posts, hashtag.replace('#', ''))
 
     def scrape_user(self, driver, username):
         posts_link = self.get_user_posts(driver, username, self.POSTS_LIMIT)
         posts = self.scrape_posts(driver, posts_link)
-        self.save_to_file(posts, username, self.USER)
         MongoConnector.save_to_db(posts, 'users')
 
     def get_posts_by_tag(self, driver, tag, number):
@@ -229,17 +218,6 @@ class InstagramScraper:
                 (By.CSS_SELECTOR, 'button[class="chBAG"]'))).click()
         except TimeoutException:
             return
-
-    def save_to_file(self, posts, name, type):
-        directory = ''
-        if type == self.TAG:
-            directory = self.OUTPUT_TAG_DIR
-        if type == self.USER:
-            directory = self.OUTPUT_USER_DIR
-        if not directory:
-            return
-        with open(directory + '/' + name + ".json", "w") as output_file:
-            json.dump(posts, output_file, indent=4)
 
 
 if __name__ == '__main__':
