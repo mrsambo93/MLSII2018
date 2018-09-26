@@ -1,6 +1,7 @@
 import sys, argparse, os
 from instagramscraper import InstagramScraper
 from flickrscraper import FlickrScraper
+from recommender import Recommender
 from mongoconnector import MongoConnector
 
 
@@ -19,14 +20,14 @@ def main():
     parser.add_argument('-t', '--tag', type=str,
                         help='The hashtag to be scraped, can be also a list or a txt file',
                         required=False, dest='t')
-    parser.add_argument('-u', '--username', type=str,
-                        help='The username of the profile to be scraped, can be also a list or a txt file',
+    parser.add_argument('-u', '--url', type=str,
+                        help='The url of the post which you want to find similar',
                         required=False, dest='u')
 
     args = parser.parse_args()
     if args.f == "scraper":
-        if not (args.t or args.u):
-            print("At least an hashtag or a user must be defined")
+        if not args.t:
+            print("At least an hashtag must be defined")
             sys.exit(1)
         instagram_scraper = InstagramScraper()
         flickr_scraper = FlickrScraper()
@@ -46,18 +47,17 @@ def main():
             elif inp == 2:
                 instagram_scraper.scrape_hashtag(driver, args.t)
                 flickr_scraper.scrape_hashtag(flickrapi, args.t)
-        if args.u:
-            inp = check_input(args.u)
-            if inp == 0:
-                with open(args.u) as user_file:
-                    for line in user_file:
-                        instagram_scraper.scrape_user(driver, line)
-            elif inp == 1:
-                for user in args.u:
-                    instagram_scraper.scrape_user(driver, user)
-            elif inp == 2:
-                instagram_scraper.scrape_user(driver, args.u)
         instagram_scraper.end_connection(driver)
+        # MongoConnector.translate_to_english('sport')
+        # MongoConnector.translate_to_english('food')
+    elif args.f == 'recommender':
+        if args.u:
+            recommender = Recommender()
+            recommendation = recommender.get_recommendations(args.u)
+            print('The best matches are: %s' % recommendation)
+        else:
+            print('Invalid argument, should be -u or --url')
+            sys.exit(1)
     else:
         print("Invalid function, type -h for more info")
         sys.exit(1)

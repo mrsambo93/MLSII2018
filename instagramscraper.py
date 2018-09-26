@@ -120,6 +120,9 @@ class InstagramScraper:
             posts_list.append(elem)
         return posts_list
 
+    def scrape_post(self, driver, post_url):
+        return self.scrape_posts(driver, [post_url]).pop()
+
     def scrape_posts(self, driver, posts_link):
         scraped = list()
         page_counter = 0

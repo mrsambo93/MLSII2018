@@ -1,4 +1,4 @@
-import flickrapi, json
+import flickrapi, json, re
 from datetime import datetime
 from mongoconnector import MongoConnector
 from mlstripper import MLStripper
@@ -36,9 +36,8 @@ class FlickrScraper:
                 post['source'] = 'www.flickr.com'
                 post['title'] = photo['title']
                 post['user_name'] = photo['ownername']
-                image_url = self.get_biggest_image_url(photo)
-                if not image_url:
-                    continue
+                sizes = flickr.photos.getSizes(photo_id=photo['id'])['sizes']['size']
+                image_url = sizes[-1]['source']
                 post['image_url'] = image_url
                 post['description'] = self.strip_tags(photo['description']['_content'])
                 post['hashtags'] = photo['tags'].split()
@@ -49,7 +48,7 @@ class FlickrScraper:
                     for c in comments_full['comments']['comment']:
                         res = dict()
                         res['commenter'] = c['authorname']
-                        res['comment'] = c['_content']
+                        res['comment'] = self.strip_tags(c['_content'])
                         comments.append(res)
                 except KeyError:
                     comments.clear()
@@ -57,17 +56,42 @@ class FlickrScraper:
                 posts.append(post)
             MongoConnector.save_to_db(posts, tag.replace('#', ''))
 
-    def get_biggest_image_url(self, photo):
+    def scrape_post(self, flickr, url):
+        print('Scraping on flickr')
+        photo_id = self.get_id(url)
+        raw_photo = flickr.photos.getinfo(photo_id=photo_id)
+        photo = raw_photo["photo"]
+        comments_full = flickr.photos.comments.getList(photo_id=photo_id)
+        post = dict()
+        post['url'] = url
+        post['source'] = 'www.flickr.com'
+        post['title'] = photo['title']['_content']
+        post['user_name'] = photo['owner']['username']
+        sizes = flickr.photos.getSizes(photo_id=photo_id)['sizes']['size']
+        image_url = sizes[-1]['source']
+        post['image_url'] = image_url
+        post['description'] = self.strip_tags(photo['description']['_content'])
+        tags = photo['tags']['tag']
+        post['hashtags'] = list()
+        for tag in tags:
+            post['hashtags'].append(tag['raw'])
+        post['date'] = datetime.utcfromtimestamp(int(photo['dateuploaded'])).strftime('%Y-%m-%d %H:%M:%S')
+        comments = list()
         try:
-            return photo['url_o']
+            for c in comments_full['comments']['comment']:
+                res = dict()
+                res['commenter'] = c['authorname']
+                res['comment'] = self.strip_tags(c['_content'])
+                comments.append(res)
         except KeyError:
-            try:
-                return photo['url_l']
-            except KeyError:
-                try:
-                    return photo['url_c']
-                except KeyError:
-                    return None
+            comments.clear()
+        post['comments'] = comments
+        return post
+
+    def get_id(self, url):
+        new = re.sub('/in/.*', '', url)
+        items = new.split('/')
+        return items[-1]
 
     def strip_tags(self, html):
         s = MLStripper()
@@ -78,4 +102,8 @@ class FlickrScraper:
 if __name__ == '__main__':
     flickr_scraper = FlickrScraper()
     flickr = flickr_scraper.establish_connection()
+    MongoConnector.remove_by_source('www.flickr.com')
     flickr_scraper.scrape_hashtag(flickr, 'sport')
+    flickr_scraper.scrape_hashtag(flickr, 'food')
+    post = flickr_scraper.scrape_post(flickr, 'https://www.flickr.com/photos/d-y-m/22823479380/in/feed')
+    print(post)
